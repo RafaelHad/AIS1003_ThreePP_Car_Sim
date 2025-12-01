@@ -1,4 +1,4 @@
-//main.cpp
+// main.cpp
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -27,13 +27,13 @@
 
 using namespace threepp;
 
-//map size variable
+// map size variable
 const float MAP_SIZE = 600.0f;
 
-//spatial grid cell size for neighborhood queries
+// spatial grid cell size for neighborhood queries
 const float GRID_CELL_SIZE = 20.0f;
 
-//obstacle
+// obstacle
 enum class ObstacleType { TREE_CYLINDER, ROCK_SPHERE };
 
 struct Obstacle {
@@ -41,16 +41,16 @@ struct Obstacle {
     Vector3 position; // world-space center (for cylinder center at ground + height/2)
     float radius;     // cylinder radius or sphere radius
     float halfHeight; // for cylinder: half height (else 0)
-    // Optional: instance index and pointer (for debug/visualization) - not used for collision math
+    // optional: instance index and pointer (for debug/visualization) - not used for collision math
     int instanceIndex;
 };
 
-//spatial grid key util
+// spatial grid key util
 static inline int makeCellKey(int ix, int iz) {
     return (ix & 0xFFFF) << 16 | (iz & 0xFFFF);
 }
 
-//aux. functions
+// aux. functions
 void enableShadowsForGroup(Group* g, bool cast = true, bool receive = false) {
     for (const auto &child : g->children) {
         if (child->is<Mesh>()) {
@@ -63,8 +63,8 @@ void enableShadowsForGroup(Group* g, bool cast = true, bool receive = false) {
     }
 }
 
-//we build obstacle lists when we make instanced meshes
-//these vectors createXXX-functions and used by CollisionSystem
+// we build obstacle lists when we make instanced meshes
+// these vectors createXXX-functions and used by CollisionSystem
 std::vector<Obstacle> g_obstacles; // alle obstacles
 std::unordered_map<int, std::vector<int>> g_spatialGrid; // cellKey -> vector of indices i g_obstacles
 
@@ -91,16 +91,16 @@ static inline std::vector<int> queryNearbyObstacleIndices(const Vector3 &pos, in
     return result;
 }
 
-//grass generation, count is variable
-//grass has no collision
+// grass generation, count is variable
+// grass has no collision
 void createGrassFieldInstanced(threepp::Scene& scene, int grassCount = 3000) {
     threepp::MTLLoader mtlLoader;
-    auto materialCreator = mtlLoader.load(R"(C:\Code\ThreeppCarSim\Assets\Grass_2_D_Color1.mtl)");
+    auto materialCreator = mtlLoader.load(R"(..\Assets\Grass_2_D_Color1.mtl)");
     materialCreator->preload();
 
     threepp::OBJLoader loader;
     loader.setMaterials(materialCreator);
-    auto grassModel = loader.load(R"(C:\Code\ThreeppCarSim\Assets\Grass_2_D_Color1.obj)");
+    auto grassModel = loader.load(R"(..\Assets\Grass_2_D_Color1.obj)");
     if (!grassModel) {
         std::cerr << "Could not load grass model!" << std::endl;
         return;
@@ -146,16 +146,16 @@ void createGrassFieldInstanced(threepp::Scene& scene, int grassCount = 3000) {
     instancedGrass->instanceMatrix()->needsUpdate();
     scene.add(instancedGrass);
 }
-//rock generation, count is variable
-//has collision
+// rock generation, count is variable
+// has collision
 void createRockFieldInstanced(threepp::Scene& scene, int rockCount = 600) {
     threepp::MTLLoader mtlLoader;
-    auto materialCreator = mtlLoader.load(R"(C:\Code\ThreeppCarSim\Assets\Rock_3_R_Color1.mtl)");
+    auto materialCreator = mtlLoader.load(R"(..\Assets\Rock_3_R_Color1.mtl)");
     materialCreator->preload();
 
     threepp::OBJLoader loader;
     loader.setMaterials(materialCreator);
-    auto rockModel = loader.load(R"(C:\Code\ThreeppCarSim\Assets\Rock_3_R_Color1.obj)");
+    auto rockModel = loader.load(R"(..\Assets\Rock_3_R_Color1.obj)");
     if (!rockModel) {
         std::cerr << "Could not load rock model!" << std::endl;
         return;
@@ -181,7 +181,7 @@ void createRockFieldInstanced(threepp::Scene& scene, int rockCount = 600) {
     instancedRocks->receiveShadow = true;
     instancedRocks->frustumCulled = false;
 
-    //approximation: use base radius
+    // approximation: use base radius
     const float baseRockRadius = 0.5f;
 
     for (int i = 0; i < rockCount; i++) {
@@ -218,15 +218,15 @@ void createRockFieldInstanced(threepp::Scene& scene, int rockCount = 600) {
     instancedRocks->instanceMatrix()->needsUpdate();
     scene.add(instancedRocks);
 }
-//tree generation, count is variable
+// tree generation, count is variable
 void createTreeFieldInstanced(threepp::Scene& scene, int treeCount = 400) {
     threepp::MTLLoader mtlLoader;
-    auto materialCreator = mtlLoader.load(R"(C:\Code\ThreeppCarSim\Assets\Tree_4_A_Color1.mtl)");
+    auto materialCreator = mtlLoader.load(R"(..\Assets\Tree_4_A_Color1.mtl)");
     materialCreator->preload();
 
     threepp::OBJLoader loader;
     loader.setMaterials(materialCreator);
-    auto treeModel = loader.load(R"(C:\Code\ThreeppCarSim\Assets\Tree_4_A_Color1.obj)");
+    auto treeModel = loader.load(R"(..\Assets\Tree_4_A_Color1.obj)");
     if (!treeModel) {
         std::cerr << "Could not load tree model!" << std::endl;
         return;
@@ -259,7 +259,7 @@ void createTreeFieldInstanced(threepp::Scene& scene, int treeCount = 400) {
     instancedTrees->receiveShadow = true;
     instancedTrees->frustumCulled = false;
 
-    //tree base cylinder-dimension
+    // tree base cylinder-dimension
     const float modelTreeRadius = 0.6f;
     const float modelTreeHeight = 6.0f;
 
@@ -280,7 +280,7 @@ void createTreeFieldInstanced(threepp::Scene& scene, int treeCount = 400) {
 
         instancedTrees->setMatrixAt(i, matrix);
 
-        //add obstacle entry for tree trunk (as cylinder)
+        // add obstacle entry for tree trunk (as cylinder)
         Obstacle obs;
         obs.type = ObstacleType::TREE_CYLINDER;
         //set center at halfway up (y + height/2)
@@ -297,11 +297,11 @@ void createTreeFieldInstanced(threepp::Scene& scene, int treeCount = 400) {
     instancedTrees->instanceMatrix()->needsUpdate();
     scene.add(instancedTrees);
 }
-//clouds generation, count is variable
-//clouds re-use rock model
+// clouds generation, count is variable
+// clouds re-use rock model
 void createCloudFieldInstanced(threepp::Scene& scene, int cloudCount = 100) {
     threepp::OBJLoader loader;
-    auto rockModel = loader.load(R"(C:\Code\ThreeppCarSim\Assets\Rock_3_R_Color1.obj)");
+    auto rockModel = loader.load(R"(..\Assets\Rock_3_R_Color1.obj)");
     if (!rockModel) {
         std::cerr << "Could not load rock model (for clouds)!" << std::endl;
         return;
@@ -319,7 +319,7 @@ void createCloudFieldInstanced(threepp::Scene& scene, int cloudCount = 100) {
         std::cerr << "No mesh found in rock model (for clouds)!" << std::endl;
         return;
     }
-    //cloud properties
+    // cloud properties
     auto cloudGeometry = rockMesh->geometry();
     auto cloudMaterial = threepp::MeshStandardMaterial::create();
     cloudMaterial->color = threepp::Color(0xffffff);
@@ -328,7 +328,7 @@ void createCloudFieldInstanced(threepp::Scene& scene, int cloudCount = 100) {
     cloudMaterial->transparent = true;
     cloudMaterial->opacity = 0.85f;
 
-    //cloud shadow behaviour
+    // cloud shadow behaviour
     auto instancedClouds = threepp::InstancedMesh::create(cloudGeometry, cloudMaterial, cloudCount);
     instancedClouds->castShadow = true;
     instancedClouds->receiveShadow = true;
@@ -354,7 +354,7 @@ void createCloudFieldInstanced(threepp::Scene& scene, int cloudCount = 100) {
     instancedClouds->instanceMatrix()->needsUpdate();
     scene.add(instancedClouds);
 }
-//terrain border generation, auto adjusts based on map size
+// terrain border generation, auto adjusts based on map size
 void createTerrainBorder(threepp::Scene& scene) {
     const float MODEL_WIDTH = 25.0f;
     const int SEGMENTS_PER_SIDE = 6;
@@ -365,9 +365,9 @@ void createTerrainBorder(threepp::Scene& scene) {
     int totalSegments = SEGMENTS_PER_SIDE * 4;
 
     threepp::OBJLoader loader;
-    auto model = loader.load(R"(C:\Code\ThreeppCarSim\Assets\Low Poly Terrain 2.obj)");
+    auto model = loader.load(R"(..\Assets\Low Poly Terrain 2.obj)");
     if (!model) {
-        std::cerr << "Could not load terrainmodel for border!" << std::endl;
+        std::cerr << "Could not load terrain model for border!" << std::endl;
         return;
     }
 
@@ -460,7 +460,7 @@ void createTerrainBorder(threepp::Scene& scene) {
     instancedBorder->instanceMatrix()->needsUpdate();
     scene.add(instancedBorder);
 }
-//ground plane generation
+// ground plane generation
 void createGround(Scene& scene) {
     auto groundGeometry = PlaneGeometry::create(MAP_SIZE, MAP_SIZE);
     auto groundMaterial = MeshStandardMaterial::create();
@@ -475,7 +475,7 @@ void createGround(Scene& scene) {
     scene.add(ground);
 }
 
-//tank
+// tank
 class Tank {
 public:
     std::shared_ptr<Group> model;
@@ -501,7 +501,7 @@ public:
     // Regenerative steering factor
     float steeringPowerTransfer = 0.15f; // reduce for smooth transition
 
-    //visual elements
+    // visual elements
     std::shared_ptr<Mesh> leftTrack;
     std::shared_ptr<Mesh> rightTrack;
 
@@ -512,7 +512,7 @@ public:
         auto darkGreen = Color(0x2d5016);
         auto veryDarkGreen = Color(0x1a2e0a);
 
-        //body
+        // body
         auto bodyGeometry = BoxGeometry::create(3, 1.2f, 5);
         auto bodyMaterial = MeshStandardMaterial::create();
         bodyMaterial->color = greenColor;
@@ -522,7 +522,7 @@ public:
         body->position.y = 0.8f;
         model->add(body);
 
-        //turret
+        // turret
         auto turretGeometry = BoxGeometry::create(2, 1, 2.5f);
         auto turretMaterial = MeshStandardMaterial::create();
         turretMaterial->color = darkGreen;
@@ -532,7 +532,7 @@ public:
         turret->position.set(0, 1.9f, -0.5f);
         model->add(turret);
 
-        //cannon
+        // cannon
         auto cannonGeometry = BoxGeometry::create(0.4f, 0.4f, 3);
         auto cannonMaterial = MeshStandardMaterial::create();
         cannonMaterial->color = veryDarkGreen;
@@ -542,7 +542,7 @@ public:
         cannon->position.set(0, 1.9f, 1.5f);
         model->add(cannon);
 
-        //tracks
+        // tracks
         auto trackMaterial = MeshStandardMaterial::create();
         trackMaterial->color = veryDarkGreen;
         trackMaterial->metalness = 0.5f;
@@ -558,7 +558,7 @@ public:
         rightTrack->position.set(1.8f, 0.4f, 0);
         model->add(rightTrack);
 
-        //wheels
+        // wheels
         auto wheelMaterial = MeshStandardMaterial::create();
         wheelMaterial->color = Color::black;
         wheelMaterial->metalness = 0.2f;
@@ -577,15 +577,15 @@ public:
     }
 
     void update() {
-        //calculate average speed, set steering mode
+        // calculate average speed, set steering mode
         float avgSpeed = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
         float absAvgSpeed = std::abs(avgSpeed);
 
-        //apply friction
+        // apply friction
         leftTrackSpeed *= friction;
         rightTrackSpeed *= friction;
 
-        // Clamp speeds based on direction
+        // clamp speeds based on direction
         if (avgSpeed >= 0) {
             leftTrackSpeed = std::clamp(leftTrackSpeed, -maxSpeedReverse, maxSpeedForward);
             rightTrackSpeed = std::clamp(rightTrackSpeed, -maxSpeedReverse, maxSpeedForward);
@@ -594,32 +594,32 @@ public:
             rightTrackSpeed = std::clamp(rightTrackSpeed, -maxSpeedReverse, maxSpeedForward);
         }
 
-        //calculate turn rate based on speed and steering mode
+        // calculate turn rate based on speed and steering mode
         float turnRate = 0.0f;
 
         if (absAvgSpeed < pivotSpeedThreshold) {
-            //low speed = pivot steering
+            // low speed = pivot steering
             turnRate = (rightTrackSpeed - leftTrackSpeed) / trackWidth * pivotTurnRate;
         } else {
-            //high speed = regenerative steering (more like a car)
+            // high speed = regenerative steering (more like a car)
             float speedDiff = rightTrackSpeed - leftTrackSpeed;
 
-            //reduce turnrate at high speed to simulate real behaviour
+            // reduce turn rate at high speed to simulate real behaviour
             float speedFactor = std::min(1.0f, pivotSpeedThreshold / absAvgSpeed);
             turnRate = (speedDiff / trackWidth) * maxTurnRate * (1.0f + speedFactor);
         }
 
-        //update rotation
+        // update rotation
         model->rotation.y += turnRate;
 
-        //calculate movement based on average speed
+        // calculate movement based on average speed
         float moveX = std::sin(model->rotation.y) * avgSpeed;
         float moveZ = std::cos(model->rotation.y) * avgSpeed;
 
         model->position.x += moveX;
         model->position.z += moveZ;
 
-        //visual belt animation
+        // visual belt animation
         if (std::abs(leftTrackSpeed) > 0.001f) {
             leftTrack->position.z = std::fmod(leftTrack->position.z - leftTrackSpeed * 5, 1.0f);
         }
@@ -628,7 +628,7 @@ public:
         }
     }
 
-    //forward acceleration
+    // forward acceleration
     void accelerateLeft() {
         leftTrackSpeed += acceleration;
     }
@@ -637,7 +637,7 @@ public:
         rightTrackSpeed += acceleration;
     }
 
-    //reverse acceleration
+    // reverse acceleration
     void brakeLeft() {
         leftTrackSpeed -= reverseAcceleration;
     }
@@ -646,7 +646,7 @@ public:
         rightTrackSpeed -= reverseAcceleration;
     }
 
-    //active braking
+    // active braking
     void activeBrakeLeft() {
         leftTrackSpeed *= brakingForce;
         if (std::abs(leftTrackSpeed) < 0.1f) leftTrackSpeed = 0.0f;
@@ -657,23 +657,23 @@ public:
         if (std::abs(rightTrackSpeed) < 0.1f) rightTrackSpeed = 0.0f;
     }
 
-    //stop belt
+    // stop belt
     void stopLeft() { leftTrackSpeed = 0; }
     void stopRight() { rightTrackSpeed = 0; }
 
-    //aux function, regenerative steering at high speed
+    // aux function, regenerative steering at high speed
     void applyRegenerativeSteering(bool turnLeft) {
         float avgSpeed = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
         float absAvgSpeed = std::abs(avgSpeed);
 
         if (absAvgSpeed > pivotSpeedThreshold) {
             if (turnLeft) {
-                //reduce left track speed gradually, increase right track speed a little
+                // reduce left track speed gradually, increase right track speed a little
                 float powerTransfer = acceleration * steeringPowerTransfer;
                 leftTrackSpeed -= powerTransfer;
                 rightTrackSpeed += powerTransfer * 0.3f; //less boost for smoother transition
             } else {
-                //reduce right track speed gradually, increase left track speed a little
+                // reduce right track speed gradually, increase left track speed a little
                 float powerTransfer = acceleration * steeringPowerTransfer;
                 rightTrackSpeed -= powerTransfer;
                 leftTrackSpeed += powerTransfer * 0.3f;
@@ -682,35 +682,34 @@ public:
     }
 };
 
-//simple collision system
-//Functions: broad-phase (spheres), narrow-phase (OBB vs sphere/cylinder), and response
+// simple collision system
+// functions: broad-phase (spheres), narrow-phase (OBB vs sphere/cylinder), and response
 
-//aux: clamp
+// aux: clamp
 static inline float clampf(float v, float a, float b) {
     return std::max(a, std::min(b, v));
 }
 
-// Transform en punkt til tank-local space (bruker model-transform invers)
+// transform a point to tank local space (uses model-transform inverse)
 Vector3 transformPointToLocal(const Group& g, const Vector3& worldPoint) {
 
-    // matrixWorld er en shared_ptr<Matrix4>, så vi må dereferere den
+    // matrixWorld is a shared_ptr<Matrix4>
     Matrix4 inv = *g.matrixWorld;
     inv.invert();
 
-    Vector3 p = worldPoint;     // applyMatrix4 krever non-const
+    Vector3 p = worldPoint;     // applyMatrix4 requires non-const
     p.applyMatrix4(inv);
     return p;
 }
 
-// OBB (tank) approximate extents (halv-dimensjoner) i lokal space.
-// Vi bruker de konstruerte body/turret/wheels - men enklere: vi vet body box størrelse = (3,1.2,5) og tracks etc.
-// Dermed OBB half extents:
+// OBB (tank) approximate extents (half dimensions) in local space
+// we use the constructed body/turret/wheels but simpler: we know the body box dimensions = (3,1.2,5) and tracks etc.
 Vector3 getTankHalfExtents() {
-    // Basert på body geometry fra konstruktøren (3 x 1.2 x 5)
-    return Vector3(3.0f/2.0f, 1.2f/2.0f + 1.0f, 5.0f/2.0f); // litt høyere for turret/cannon (legger til ~1.0 i y)
+    // based on body geometry from constructor (3 x 1.2 x 5)
+    return Vector3(3.0f/2.0f, 1.2f/2.0f + 1.0f, 5.0f/2.0f);
 }
 
-// OBB vs sphere test: transform sphere center til OBB local, clamp, finn avstand
+// OBB vs sphere test: transform sphere center to OBB local, clamp, find distance
 bool OBBvsSphere(const Group& tankModel, const Vector3 &sphereCenter, float sphereRadius, Vector3 &outClosestPointLocal) {
     Vector3 localCenter = transformPointToLocal(tankModel, sphereCenter);
     Vector3 half = getTankHalfExtents();
@@ -719,20 +718,20 @@ bool OBBvsSphere(const Group& tankModel, const Vector3 &sphereCenter, float sphe
     outClosestPointLocal.y = clampf(localCenter.y, -half.y, half.y);
     outClosestPointLocal.z = clampf(localCenter.z, -half.z, half.z);
 
-    // Calculate squared distance in local space
+    // calculate squared distance in local space
     Vector3 diff = localCenter - outClosestPointLocal;
     float dist2 = diff.lengthSq();
     return dist2 <= sphereRadius * sphereRadius;
 }
 
-// OBB vs cylinder (axis aligned in world-space along Y): first test Y-overlap, så 2D OBB vs circle
+// OBB vs cylinder (axis aligned in world-space along Y): first test Y-overlap, so 2D OBB vs circle
 bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRadius, float cylHalfHeight, Vector3 &outClosestPointWorld) {
-    // Tank OBB in world: to compare Y extents: transform OBB min/max in world
+    // tank OBB in world: to compare Y extents: transform OBB min/max in world
     Vector3 half = getTankHalfExtents();
 
-    // Tank center in world:
+    // tank center in world:
     Vector3 tankCenter = tankModel.position;
-    // Tank Y-extents in world: since rotation can tilt, but tank rotation is only around Y in this sim -> safe to use center.y +/- half.y
+    // tank Y-extents in world: since rotation can tilt, but tank rotation is only around Y in this sim therefore safe to use center.y +/- half.y
     float tankMinY = tankCenter.y - half.y;
     float tankMaxY = tankCenter.y + half.y;
 
@@ -744,8 +743,8 @@ bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRa
         return false;
     }
 
-    // Project cylinder center into tank-local space (drop Y)
-    // We'll use transformPointToLocal but zero out y translation when computing 2D distances - simpler: transform full point, then use x,z.
+    // project cylinder center into tank-local space (drop Y)
+    // we'll use transformPointToLocal but zero out y translation when computing 2D distances - simpler: transform full point, then use x,z.
     Vector3 localC = transformPointToLocal(tankModel, cylCenter);
 
     // half extents in local
@@ -763,7 +762,7 @@ bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRa
 
     if (!overlap) return false;
 
-    // compute closest point in local then transform to world
+    // compute the closest point in local then transform to world
     Vector3 closestLocal(closestX, clampf(localC.y, -halfLocal.y, halfLocal.y), closestZ);
 
     // transform closestLocal to world
@@ -773,20 +772,20 @@ bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRa
     return true;
 }
 
-// Broad-phase: tank bounding sphere radius (approx)
+// broad-phase: tank bounding sphere radius (approx)
 float getTankBoundingSphereRadius() {
-    // Conservative bound: diagonal of OBB extents
+    // conservative bound: diagonal of OBB extents
     Vector3 half = getTankHalfExtents();
     return std::sqrt(half.x*half.x + half.y*half.y + half.z*half.z);
 }
 
-// Separate tank out of penetration: push tank along direction from obstacle to tank by penetration depth
+// separate tank out of penetration: push tank along direction from obstacle to tank by penetration depth
 void separateTankFromPoint(Group &tankModel, const Vector3 &pushFromWorld, float pushDistance) {
 
-    // Horisontal retning tank → obstacle
+    // horizontal tank to obstacle
     Vector3 dir = tankModel.position.clone().sub(pushFromWorld);
 
-    // Tving kollisjonsrespons til XZ-plan
+    // force collision response to XZ-plan
     dir.y = 0;
 
     if (dir.lengthSq() < 1e-6f) {
@@ -795,46 +794,46 @@ void separateTankFromPoint(Group &tankModel, const Vector3 &pushFromWorld, float
         dir.normalize();
     }
 
-    // Bevar original høyde etter kollisjon
+    // retain original y position after collision
     float originalY = tankModel.position.y;
 
     tankModel.position.addScaledVector(dir, pushDistance + 0.01f);
 
-    tankModel.position.y = originalY; // lås høyde
+    tankModel.position.y = originalY;
 }
 
-// CollisionSystem: checks nearby obstacles and resolves collisions
+// collisionSystem: checks nearby obstacles and resolves collisions
 void resolveCollisions(Tank &tank) {
-    // Broad-phase: tank bounding sphere center is tank.model->position
+    // broad-phase: tank bounding sphere center is tank.model->position
     Vector3 tankCenter = tank.model->position;
     float tankSphereRadius = getTankBoundingSphereRadius();
 
-    // Query nearby obstacles using spatial grid (1 cell radius). This reduces checks.
+    // query nearby obstacles using spatial grid (1 cell radius). This reduces checks.
     std::vector<int> candidates = queryNearbyObstacleIndices(tankCenter, 1);
 
-    // If grid empty, optionally fallback to check all (we choose to simply return)
+    // if grid empty, optionally fallback to check all (we choose to simply return)
     if (candidates.empty()) return;
 
-    // For each candidate, first broad-phase precise sphere-sphere test (if obstacle is sphere) or sphere-approx test (use obstacle.radius)
+    // for each candidate, first broad-phase precise sphere-sphere test (if obstacle is sphere) or sphere-approx test (use obstacle.radius)
     for (int idx : candidates) {
         const Obstacle &obs = g_obstacles[idx];
 
-        // Quick sphere-based broad-phase: distance squared between centers
+        // quick sphere-based broad-phase: distance squared between centers
         float dx = tankCenter.x - obs.position.x;
         float dz = tankCenter.z - obs.position.z;
         float dy = tankCenter.y - obs.position.y;
         float dist2 = dx*dx + dy*dy + dz*dz;
         float broadR = tankSphereRadius + obs.radius;
         if (dist2 > broadR*broadR) {
-            continue; // ikke i rekkevidde
+            continue; // not in range
         }
 
-        // Narrow-phase: OBB (tank) vs sphere/cylinder
+        // narrow-phase: OBB (tank) vs sphere/cylinder
         if (obs.type == ObstacleType::ROCK_SPHERE) {
             Vector3 closestLocal;
             bool hit = OBBvsSphere(*tank.model, obs.position, obs.radius, closestLocal);
             if (hit) {
-                // compute closest point in world
+                // compute the closest point in world
                 Matrix4 mat = *tank.model->matrix;
                 Vector3 closestWorld = closestLocal.applyMatrix4(mat);
 
@@ -844,11 +843,11 @@ void resolveCollisions(Tank &tank) {
                 float penetration = (obs.radius) - d;
                 if (penetration < 0) penetration = 0.0f;
 
-                // Response: move tank out and damp momentum
+                // response: move tank out and damp momentum
                 if (d > 1e-6f) {
                     separateTankFromPoint(*tank.model, obs.position, penetration + 0.01f);
                 } else {
-                    // if coincide, push backwards
+                    // if coincided, push backwards
                     Vector3 pushDir(std::sin(tank.model->rotation.y), 0, std::cos(tank.model->rotation.y));
                     tank.model->position.addScaledVector(pushDir, -0.2f);
                 }
@@ -883,7 +882,7 @@ void resolveCollisions(Tank &tank) {
     }
 }
 
-// --- CameraSystem med chase og free look ---
+// cameraSystem with chase and free look
 struct CameraSystem {
     enum Mode { CHASE, FREE_LOOK };
     Mode currentMode = CHASE;
@@ -899,16 +898,16 @@ struct CameraSystem {
     void updateChase(PerspectiveCamera& camera, const Vector3& tankPos, float tankYaw) {
         const float chaseDistance = 20.0f;
         const float chaseHeight = 8.0f;
-        const float lerpFactor = 0.15f;
+        const float LerpFactor = 0.15f; //lerp
 
         Vector3 targetPos;
         targetPos.x = tankPos.x - std::sin(tankYaw) * chaseDistance;
         targetPos.y = tankPos.y + chaseHeight;
         targetPos.z = tankPos.z - std::cos(tankYaw) * chaseDistance;
 
-        camera.position.x += (targetPos.x - camera.position.x) * lerpFactor;
-        camera.position.y += (targetPos.y - camera.position.y) * lerpFactor;
-        camera.position.z += (targetPos.z - camera.position.z) * lerpFactor;
+        camera.position.x += (targetPos.x - camera.position.x) * LerpFactor;
+        camera.position.y += (targetPos.y - camera.position.y) * LerpFactor;
+        camera.position.z += (targetPos.z - camera.position.z) * LerpFactor;
 
         Vector3 lookAtPoint;
         lookAtPoint.x = tankPos.x + std::sin(tankYaw) * 5.0f;
@@ -943,7 +942,7 @@ struct CameraSystem {
 };
 
 int main() {
-    Canvas canvas("Tank Simulator - M1 Abrams Style");
+    Canvas canvas("Tank Simulator");
     GLRenderer renderer(canvas.size());
     renderer.shadowMap().enabled = true;
 
@@ -954,10 +953,10 @@ int main() {
     camera.position.set(0, 15, 20);
     camera.lookAt({0, 0, 0});
 
-    // Initialiser random seed én gang
+    // initialize random seed
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 
-    // ===== FORBEDRET LYSSYSTEM =====
+    // lighting system
     auto ambientLight = AmbientLight::create(Color(0xffffff), 0.3f);
     scene.add(ambientLight);
 
@@ -979,11 +978,11 @@ int main() {
     fillLight->position.set(-50, 50, -50);
     scene.add(fillLight);
 
-    // Opprett scene og fyll obstacles
+    // create scene og populate with obstacles
     createGround(scene);
     createGrassFieldInstanced(scene, 3000);
-    createRockFieldInstanced(scene, 600);  // fyller g_obstacles med ROCK_SPHERE
-    createTreeFieldInstanced(scene, 400);  // fyller g_obstacles med TREE_CYLINDER
+    createRockFieldInstanced(scene, 600);  // populate g_obstacles with ROCK_SPHERE
+    createTreeFieldInstanced(scene, 400);  // populate g_obstacles with TREE_CYLINDER
     createCloudFieldInstanced(scene, 100);
     createTerrainBorder(scene);
 
@@ -1020,77 +1019,73 @@ int main() {
             float avgSpeed = (tank.leftTrackSpeed + tank.rightTrackSpeed) / 2.0f;
             float absAvgSpeed = std::abs(avgSpeed);
 
-            // Beregn om vi er i pivot eller regenerative modus
+            // calculate if tank is in pivot or regenerative mode
             bool isPivotMode = absAvgSpeed < tank.pivotSpeedThreshold;
 
             if (movingForward) {
                 if (turningLeft) {
                     if (isPivotMode) {
-                        // LAV HASTIGHET: Pivot turn (stopp venstre, akseler høyre)
+                        // low speed: pivot turn (stop left, increase right)
                         tank.stopLeft();
                         tank.accelerateRight();
                     } else {
-                        // HØY HASTIGHET: Regenerative steering
+                        // high speed: regenerative steering
                         tank.accelerateLeft();
                         tank.accelerateRight();
                         tank.applyRegenerativeSteering(true); // true = turn left
                     }
                 } else if (turningRight) {
                     if (isPivotMode) {
-                        // LAV HASTIGHET: Pivot turn
+                        // low speed: pivot turn
                         tank.accelerateLeft();
                         tank.stopRight();
                     } else {
-                        // HØY HASTIGHET: Regenerative steering
+                        // high speed: regenerative steering
                         tank.accelerateLeft();
                         tank.accelerateRight();
                         tank.applyRegenerativeSteering(false); // false = turn right
                     }
                 } else {
-                    // Rett frem
+                    // straight ahead
                     tank.accelerateLeft();
                     tank.accelerateRight();
                 }
             } else if (movingBackward) {
                 if (turningLeft) {
-                    // Bakover + venstre: Alltid pivot (revers er treg)
+                    // reverse + left: always pivot
                     tank.stopLeft();
                     tank.brakeRight();
                 } else if (turningRight) {
-                    // Bakover + høyre: Alltid pivot
+                    // reverse + right: always pivot
                     tank.brakeLeft();
                     tank.stopRight();
                 } else {
-                    // Rett bakover
+                    // straight reverse
                     tank.brakeLeft();
                     tank.brakeRight();
                 }
             } else {
-                // Ingen frem/tilbake input
+                // no forward/reverse input
                 if (braking) {
-                    // Aktiv bremsing med SPACE
+                    // active braking with SPACE
                     tank.activeBrakeLeft();
                     tank.activeBrakeRight();
                 } else if (turningLeft) {
-                    // Bare sving (alltid pivot når stillestående)
+                    // only turning (always pivot when stationary)
                     tank.brakeLeft();
                     tank.accelerateRight();
                 } else if (turningRight) {
-                    // Bare sving
+                    // only turning
                     tank.accelerateLeft();
                     tank.brakeRight();
                 }
-                // Ellers: La friksjon ta over (coast)
+                // Else: friction (coast)
             }
         }
 
-        // Flytt skyene
-        // (instancedClouds var globalt i original; her er det instanced lokalt i createCloudField)
-        // For enkelhets skyld: vi lar skyene være statiske i denne versjonen, eller du kan gjøre instancedClouds global.
-
         tank.update();
 
-        // --- Kollisjonskall: resolveCollisions gjør broad + narrow + respons ---
+        // collision: resolveCollisions does broad + narrow + response
         resolveCollisions(tank);
 
         if (cameraSystem.currentMode == CameraSystem::CHASE) {
