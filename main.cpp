@@ -288,12 +288,13 @@ void createTreeFieldInstanced(threepp::Scene& scene, int treeCount = 400) {
         //set center at halfway up (y + height/2)
         float height = modelTreeHeight * scale;
         obs.halfHeight = height * 0.5f;
-        obs.position = Vector3(position.x, position.y + obs.halfHeight, position.z); // tree trunk-center
+        obs.position = position; // CENTER AT GROUND (y=0)
+
         obs.radius = modelTreeRadius * scale;
         obs.instanceIndex = i;
         int idx = static_cast<int>(g_obstacles.size());
         g_obstacles.push_back(obs);
-        addObstacleToGrid(idx, Vector3(position.x, position.z, 0)); // grid bruker x,z
+        addObstacleToGrid(idx, obs.position);
     }
 
     instancedTrees->instanceMatrix()->needsUpdate();
@@ -482,11 +483,11 @@ class Tank {
 public:
     std::shared_ptr<Group> model;
 
-    //belt speed system
+    // belt speed system
     float leftTrackSpeed = 0.0f;
     float rightTrackSpeed = 0.0f;
 
-    //physics parameters
+    // physics parameters
     float maxSpeedForward = 2.50f;
     float maxSpeedReverse = 1.50f;
     float acceleration = 0.010f;
@@ -494,13 +495,13 @@ public:
     float friction = 0.982f;
     float brakingForce = 0.92f;
 
-    //steering parameters
+    // steering parameters
     float trackWidth = 3.6f;
     float pivotSpeedThreshold = 1.2f;
     float maxTurnRate = 0.045f;
     float pivotTurnRate = 0.055f;
 
-    // Regenerative steering factor
+    // regenerative steering factor
     float steeringPowerTransfer = 0.15f; // reduce for smooth transition
 
     // visual elements
@@ -683,7 +684,7 @@ public:
         }
     }
 };
-// Forward declaration for getTankHalfExtents (defined later in file)
+// forward declaration for getTankHalfExtents (defined later in file)
 Vector3 getTankHalfExtents();
 
 class CollisionVisualizer {
@@ -840,16 +841,17 @@ bool OBBvsSphere(const Group& tankModel, const Vector3 &sphereCenter, float sphe
     return dist2 <= sphereRadius * sphereRadius;
 }
 
-// OBB vs cylinder (axis aligned in world-space along Y): first test Y-overlap, so 2D OBB vs circle
+// OBB vs cylinder (axis aligned in world-space along Y)
 bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRadius, float cylHalfHeight, Vector3 &outClosestPointWorld) {
-    // tank OBB in world: to compare Y extents: transform OBB min/max in world
     Vector3 half = getTankHalfExtents();
 
-    // tank center in world:
+    // fix: account for the tank body's local Y offset (0.8f) relative to the group root
     Vector3 tankCenter = tankModel.position;
-    // tank Y-extents in world: since rotation can tilt, but tank rotation is only around Y in this sim therefore safe to use center.y +/- half.y
-    float tankMinY = tankCenter.y - half.y;
-    float tankMaxY = tankCenter.y + half.y;
+    float tankBodyCenterY = tankCenter.y + 0.8f;
+
+    // tank Y-extents in world
+    float tankMinY = tankBodyCenterY - half.y;
+    float tankMaxY = tankBodyCenterY + half.y;
 
     float cylMinY = cylCenter.y - cylHalfHeight;
     float cylMaxY = cylCenter.y + cylHalfHeight;
@@ -859,12 +861,10 @@ bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRa
         return false;
     }
 
-    // project cylinder center into tank-local space (drop Y)
-    // we'll use transformPointToLocal but zero out y translation when computing 2D distances - simpler: transform full point, then use x,z.
+    // project cylinder center into tank-local space
     Vector3 localC = transformPointToLocal(tankModel, cylCenter);
 
     // half extents in local
-    // clamp localC.x,z to half extents
     Vector3 halfLocal = half;
 
     float closestX = clampf(localC.x, -halfLocal.x, halfLocal.x);
@@ -878,7 +878,6 @@ bool OBBvsCylinder(const Group& tankModel, const Vector3 &cylCenter, float cylRa
 
     if (!overlap) return false;
 
-    // compute the closest point in local then transform to world
     Vector3 closestLocal(closestX, clampf(localC.y, -halfLocal.y, halfLocal.y), closestZ);
 
     // transform closestLocal to world
