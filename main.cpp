@@ -35,6 +35,14 @@ const float MAP_SIZE = 600.0f;
 // spatial grid cell size for neighborhood queries
 const float GRID_CELL_SIZE = 20.0f;
 
+// SIMULATION SETTINGS
+struct SimSettings {
+    static const int GRASS_COUNT = 3000;
+    static const int ROCK_COUNT = 600;
+    static const int TREE_COUNT = 400;
+    static const int CLOUD_COUNT = 100;
+};
+
 // obstacle
 enum class ObstacleType { TREE_CYLINDER, ROCK_SPHERE };
 
@@ -1095,10 +1103,10 @@ int main() {
 
     // create scene and populate with obstacles
     createGround(scene);
-    createGrassFieldInstanced(scene, 3000);
-    createRockFieldInstanced(scene, 600);  // populate g_obstacles with ROCK_SPHERE
-    createTreeFieldInstanced(scene, 400);  // populate g_obstacles with TREE_CYLINDER
-    createCloudFieldInstanced(scene, 100);
+    createGrassFieldInstanced(scene,SimSettings::GRASS_COUNT);
+    createRockFieldInstanced(scene,SimSettings::ROCK_COUNT);
+    createTreeFieldInstanced(scene,SimSettings::TREE_COUNT);
+    createCloudFieldInstanced(scene,SimSettings::CLOUD_COUNT);
     createTerrainBorder(scene);
 
     // Create tank BEFORE using it
