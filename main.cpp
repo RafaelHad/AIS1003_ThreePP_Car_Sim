@@ -24,6 +24,8 @@
 #include <threepp/objects/Group.hpp>
 #include <threepp/geometries/BoxGeometry.hpp>
 #include <threepp/materials/MeshBasicMaterial.hpp>
+#include <threepp/geometries/SphereGeometry.hpp>
+#include <threepp/geometries/CylinderGeometry.hpp>
 
 using namespace threepp;
 
@@ -182,7 +184,7 @@ void createRockFieldInstanced(threepp::Scene& scene, int rockCount = 600) {
     instancedRocks->frustumCulled = false;
 
     // approximation: use base radius
-    const float baseRockRadius = 0.5f;
+    const float baseRockRadius = 2.0f;
 
     for (int i = 0; i < rockCount; i++) {
         float x = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * MAP_SIZE;
@@ -681,9 +683,123 @@ public:
         }
     }
 };
+// Forward declaration for getTankHalfExtents (defined later in file)
+Vector3 getTankHalfExtents();
 
-// simple collision system
-// functions: broad-phase (spheres), narrow-phase (OBB vs sphere/cylinder), and response
+class CollisionVisualizer {
+public:
+    std::shared_ptr<Group> debugGroup;
+    bool enabled = false;
+
+    // store debug meshes for obstacles
+    std::vector<std::shared_ptr<Mesh>> obstacleMeshes;
+    std::shared_ptr<Mesh> tankMesh;
+
+    CollisionVisualizer() {
+        debugGroup = Group::create();
+    }
+
+    void initialize(Scene& scene, const std::vector<Obstacle>& obstacles, Tank& tank) {
+        // create semi-transparent red material
+        auto debugMaterial = MeshBasicMaterial::create();
+        debugMaterial->color = Color(0xff0000);
+        debugMaterial->transparent = true;
+        debugMaterial->opacity = 0.3f;
+        debugMaterial->wireframe = false;
+        debugMaterial->depthWrite = false; // Prevent z-fighting
+
+        // create wireframe material for edges
+        auto wireframeMaterial = MeshBasicMaterial::create();
+        wireframeMaterial->color = Color(0xff0000);
+        wireframeMaterial->wireframe = true;
+        wireframeMaterial->opacity = 0.8f;
+        wireframeMaterial->transparent = true;
+
+        // create debug meshes for obstacles
+        for (const auto& obs : obstacles) {
+            std::shared_ptr<Mesh> debugMesh;
+
+            if (obs.type == ObstacleType::ROCK_SPHERE) {
+                // sphere geometry for rocks
+                auto sphereGeom = SphereGeometry::create(obs.radius, 16, 16);
+                debugMesh = Mesh::create(sphereGeom, debugMaterial);
+                debugMesh->position.copy(obs.position);
+
+                // add wireframe overlay
+                auto wireMesh = Mesh::create(sphereGeom, wireframeMaterial);
+                wireMesh->position.copy(obs.position);
+                debugGroup->add(wireMesh);
+
+            } else if (obs.type == ObstacleType::TREE_CYLINDER) {
+                // cylinder geometry for trees
+                auto cylGeom = CylinderGeometry::create(
+                    obs.radius,           // radiusTop
+                    obs.radius,           // radiusBottom
+                    obs.halfHeight * 2.0f, // height
+                    16                     // radialSegments
+                );
+                debugMesh = Mesh::create(cylGeom, debugMaterial);
+                debugMesh->position.copy(obs.position);
+
+                // add wireframe overlay
+                auto wireMesh = Mesh::create(cylGeom, wireframeMaterial);
+                wireMesh->position.copy(obs.position);
+                debugGroup->add(wireMesh);
+            }
+
+            if (debugMesh) {
+                obstacleMeshes.push_back(debugMesh);
+                debugGroup->add(debugMesh);
+            }
+        }
+
+        // create debug mesh for tank (OBB)
+        Vector3 tankHalfExtents = getTankHalfExtents();
+        auto tankBoxGeom = BoxGeometry::create(
+            tankHalfExtents.x * 2.0f,
+            tankHalfExtents.y * 2.0f,
+            tankHalfExtents.z * 2.0f
+        );
+
+        tankMesh = Mesh::create(tankBoxGeom, debugMaterial);
+
+        // add wireframe for tank
+        auto tankWireMesh = Mesh::create(tankBoxGeom, wireframeMaterial);
+        debugGroup->add(tankWireMesh);
+        debugGroup->add(tankMesh);
+
+        // add debug group to scene but keep it hidden initially
+        scene.add(debugGroup);
+        debugGroup->visible = false;
+    }
+
+    void update(Tank& tank) {
+        if (! enabled || !tankMesh) return;
+
+        // update tank debug mesh to match tank position and rotation
+        tankMesh->position. copy(tank.model->position);
+        tankMesh->rotation.copy(tank. model->rotation);  // Copy full rotation, not just Y
+
+        // update wireframe tank mesh (it's the second-to-last child)
+        if (debugGroup->children.size() >= 2) {
+            auto wireTank = debugGroup->children[debugGroup->children.size() - 2];
+            if (wireTank->is<Mesh>()) {
+                wireTank->position.copy(tank. model->position);
+                wireTank->rotation.copy(tank.model->rotation);  // Copy full rotation here too
+            }
+        }
+    }
+
+    void toggle() {
+        enabled = !enabled;
+        debugGroup->visible = enabled;
+        std::cout << "\nCollision Visualization: " << (enabled ? "ON" : "OFF") << std::endl;
+    }
+
+    bool isEnabled() const {
+        return enabled;
+    }
+};
 
 // aux: clamp
 static inline float clampf(float v, float a, float b) {
@@ -943,15 +1059,15 @@ struct CameraSystem {
 
 int main() {
     Canvas canvas("Tank Simulator");
-    GLRenderer renderer(canvas.size());
-    renderer.shadowMap().enabled = true;
+    GLRenderer renderer(canvas. size());
+    renderer.shadowMap(). enabled = true;
 
     Scene scene;
     scene.background = Color::skyblue;
 
     PerspectiveCamera camera(60, canvas.aspect(), 0.1f, 1000.f);
-    camera.position.set(0, 15, 20);
-    camera.lookAt({0, 0, 0});
+    camera.position. set(0, 15, 20);
+    camera. lookAt({0, 0, 0});
 
     // initialize random seed
     std::srand(static_cast<unsigned>(std::time(nullptr)));
@@ -978,7 +1094,7 @@ int main() {
     fillLight->position.set(-50, 50, -50);
     scene.add(fillLight);
 
-    // create scene og populate with obstacles
+    // create scene and populate with obstacles
     createGround(scene);
     createGrassFieldInstanced(scene, 3000);
     createRockFieldInstanced(scene, 600);  // populate g_obstacles with ROCK_SPHERE
@@ -986,9 +1102,16 @@ int main() {
     createCloudFieldInstanced(scene, 100);
     createTerrainBorder(scene);
 
+    // Create tank BEFORE using it
     Tank tank;
     enableShadowsForGroup(tank.model.get(), true, true);
-    scene.add(tank.model);
+    scene.add(tank. model);
+
+    // Create collision visualizer AFTER tank is created
+    CollisionVisualizer collisionViz;
+
+    // Initialize collision visualization AFTER both obstacles and tank are created
+    collisionViz.initialize(scene, g_obstacles, tank);
 
     CameraSystem cameraSystem;
 
@@ -997,6 +1120,9 @@ int main() {
         keysPressed[evt.key] = true;
         if (evt.key == Key::C) {
             cameraSystem.toggleMode();
+        }
+        if (evt.key == Key::O) {
+        collisionViz.toggle();
         }
     });
     KeyAdapter keyUpListener(KeyAdapter::Mode::KEY_RELEASED, [&](KeyEvent evt) {
@@ -1087,6 +1213,9 @@ int main() {
 
         // collision: resolveCollisions does broad + narrow + response
         resolveCollisions(tank);
+
+        // Update collision visualization
+        collisionViz.update(tank);
 
         if (cameraSystem.currentMode == CameraSystem::CHASE) {
             cameraSystem.updateChase(camera, tank.model->position, tank.model->rotation.y);
