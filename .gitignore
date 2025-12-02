@@ -5,8 +5,11 @@
 *.slo
 *.lo
 *.o
+# Ignore compiled object files
 *.obj
 
+# Allow 3D model files in the assets folder
+! assets/**/*.obj
 # Precompiled Headers
 *.gch
 *.pch
