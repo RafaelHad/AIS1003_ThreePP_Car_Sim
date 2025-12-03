@@ -498,18 +498,18 @@ public:
     // steering intertia system
     float targetSteeringInput = 0.0f; // desired steering
     float currentSteeringInput = 0.0f; // actual steering
-    float steeringInertia = 0.08f; // steering response (low = slow)
+    float steeringInertia = 0.04f; // steering response (low = slow)
 
     // acceleration inertia system
     float targetThrottle = 0.0f; // desired throttle
     float currentThrottle = 0.0f; // actual throttle
-    float throttleInertia = 0.05f; // throttle response (low = slow)
+    float throttleInertia = 0.025f; // throttle response (low = slow)
 
     // physics parameters
     float maxSpeedForward = 1.00f;
     float maxSpeedReverse = 0.50f;
-    float acceleration = 0.002f;
-    float reverseAcceleration = 0.0015f;
+    float acceleration = 0.0015f;
+    float reverseAcceleration = 0.001f;
     float friction = 0.992f;
     float brakingForce = 0.95f;
 
@@ -517,7 +517,7 @@ public:
     float trackWidth = 3.6f;
     float pivotSpeedThreshold = 0.8f;
     float maxTurnRate = 0.025f;
-    float pivotTurnRate = 0.015f;
+    float pivotTurnRate = 0.02f;
 
     // regenerative steering factor
     float steeringPowerTransfer = 0.05f; // reduce for smooth transition
@@ -619,7 +619,7 @@ public:
     float avgSpeed = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
     float absAvgSpeed = std::abs(avgSpeed);
 
-    // apply steering based on current (smoothed) input
+        // apply steering based on current (smoothed) input
         if (std::abs(currentSteeringInput) > 0.01f) {
             if (absAvgSpeed < pivotSpeedThreshold) {
                 // pivot steering at low speed
@@ -632,14 +632,17 @@ public:
                     float avgSpeedNow = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
                     leftTrackSpeed -= avgSpeedNow;
                     rightTrackSpeed -= avgSpeedNow;
+                } else {
+                    // WITH throttle: also preserve average speed
+                    float avgSpeedNow = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
+                    float correction = avgSpeed - avgSpeedNow;
+                    leftTrackSpeed += correction;
+                    rightTrackSpeed += correction;
                 }
             } else {
                 // regenerative steering at high speed
-                // pure power transfer - slow one track, speed up the other equally
                 float speedFactor = std::min(1.0f, pivotSpeedThreshold / absAvgSpeed);
                 float steerForce = currentSteeringInput * steeringPowerTransfer * speedFactor;
-
-                // transfer speed from one track to the other (no net gain)
                 leftTrackSpeed -= steerForce;
                 rightTrackSpeed += steerForce;
 
@@ -744,6 +747,153 @@ public:
 // forward declaration for getTankHalfExtents (defined later in file)
 Vector3 getTankHalfExtents();
 
+// Dust particle structure
+struct DustParticle {
+    std::shared_ptr<Mesh> mesh;
+    Vector3 velocity;
+    float lifetime;
+    float maxLifetime;
+    float initialOpacity;
+};
+
+class DustSystem {
+public:
+    std::vector<DustParticle> particles;
+    std::shared_ptr<BufferGeometry> dustGeometry;
+    float spawnTimer = 0.0f;
+    float spawnInterval = 0.08f;
+    float speedThreshold = 0.06f;
+
+    void initialize(Scene& scene) {
+        threepp::OBJLoader loader;
+        auto rockModel = loader.load(R"(..\Assets\Rock_3_R_Color1.obj)");
+        if (!rockModel) {
+            std::cerr << "Could not load rock model for dust!" << std::endl;
+            return;
+        }
+
+        threepp::Mesh* rockMesh = nullptr;
+        for (const auto& child : rockModel->children) {
+            if (child->is<threepp::Mesh>()) {
+                rockMesh = child->as<threepp::Mesh>();
+                break;
+            }
+        }
+
+        if (rockMesh) {
+            dustGeometry = rockMesh->geometry();
+        }
+    }
+
+    void spawnDustParticle(Scene& scene, const Vector3& position) {
+        if (! dustGeometry) return;
+
+        auto dustMaterial = MeshStandardMaterial::create();
+        dustMaterial->color = Color(0x8B7355);
+        dustMaterial->transparent = true;
+        dustMaterial->opacity = 0.5f;
+        dustMaterial->depthWrite = false;
+
+        auto dustMesh = Mesh::create(dustGeometry, dustMaterial);
+
+        float scale = 0.2f + (static_cast<float>(std::rand()) / RAND_MAX) * 0.3f;
+        dustMesh->scale. set(scale, scale * 0.7f, scale);
+
+        float rotY = (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f * math::PI;
+        dustMesh->rotation. y = rotY;
+
+        dustMesh->position. copy(position);
+        dustMesh->position. y = 0.05f;
+
+        dustMesh->castShadow = false;
+        dustMesh->receiveShadow = false;
+
+        scene.add(dustMesh);
+
+        DustParticle particle;
+        particle. mesh = dustMesh;
+
+        float spreadX = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 0.02f;
+        float spreadZ = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * 0.02f;
+        float upwardSpeed = 0.003f + (static_cast<float>(std::rand()) / RAND_MAX) * 0.005f;
+
+        particle.velocity = Vector3(spreadX, upwardSpeed, spreadZ);
+        particle.maxLifetime = 3.0f + (static_cast<float>(std::rand()) / RAND_MAX) * 2.0f;
+        particle.lifetime = particle.maxLifetime;
+        particle. initialOpacity = 0.5f;
+
+        particles.push_back(particle);
+    }
+
+    void update(Scene& scene, Tank& tank, float deltaTime) {
+        float avgSpeed = (tank.leftTrackSpeed + tank.rightTrackSpeed) / 2.0f;
+        float absAvgSpeed = std::abs(avgSpeed);
+
+        if (absAvgSpeed > speedThreshold) {
+            spawnTimer += deltaTime;
+
+            float dynamicInterval = spawnInterval / (absAvgSpeed / speedThreshold);
+            dynamicInterval = std::max(0.03f, dynamicInterval);
+
+            if (spawnTimer >= dynamicInterval) {
+                spawnTimer = 0.0f;
+
+                float sinY = std::sin(tank.model->rotation.y);
+                float cosY = std::cos(tank. model->rotation.y);
+
+                float trackOffsetX = 1.8f * cosY;
+                float trackOffsetZ = -1.8f * sinY;
+
+                float frontWheelDistance = 2.5f;
+                float frontOffsetX = sinY * frontWheelDistance;
+                float frontOffsetZ = cosY * frontWheelDistance;
+
+                Vector3 leftWheelPos = tank. model->position.clone();
+                leftWheelPos.x += -trackOffsetX + frontOffsetX;
+                leftWheelPos.z += -trackOffsetZ + frontOffsetZ;
+                spawnDustParticle(scene, leftWheelPos);
+
+                Vector3 rightWheelPos = tank. model->position.clone();
+                rightWheelPos.x += trackOffsetX + frontOffsetX;
+                rightWheelPos.z += trackOffsetZ + frontOffsetZ;
+                spawnDustParticle(scene, rightWheelPos);
+            }
+        }
+
+        for (auto it = particles.begin(); it != particles.end(); ) {
+            it->lifetime -= deltaTime;
+
+            if (it->lifetime <= 0) {
+                scene.remove(*it->mesh);
+                it = particles.erase(it);
+            } else {
+                it->mesh->position.x += it->velocity.x;
+                it->mesh->position.y += it->velocity. y;
+                it->mesh->position. z += it->velocity.z;
+
+                float scale = it->mesh->scale.x * 1.002f;
+                it->mesh->scale.set(scale, scale * 0.7f, scale);
+
+                float lifeRatio = it->lifetime / it->maxLifetime;
+                float opacity = it->initialOpacity * lifeRatio;
+
+                if (it->mesh->material()->is<MeshStandardMaterial>()) {
+                    auto mat = it->mesh->material()->as<MeshStandardMaterial>();
+                    mat->opacity = opacity;
+                }
+
+                ++it;
+            }
+        }
+    }
+
+    void clear(Scene& scene) {
+        for (auto& particle : particles) {
+            scene. remove(*particle.mesh);
+        }
+        particles.clear();
+    }
+};
 class CollisionVisualizer {
 public:
     std::shared_ptr<Group> debugGroup;
@@ -1163,6 +1313,10 @@ int main() {
     enableShadowsForGroup(tank.model.get(), true, true);
     scene.add(tank. model);
 
+    // Create dust system
+    DustSystem dustSystem;
+    dustSystem. initialize(scene);
+
     // Create collision visualizer AFTER tank is created
     CollisionVisualizer collisionViz;
 
@@ -1191,7 +1345,9 @@ int main() {
     const float cloudSpeed = 0.01f;
 
     canvas.animate([&] {
-    if (cameraSystem. currentMode == CameraSystem::CHASE) {
+        float deltaTime = clock. getDelta();
+
+        if (cameraSystem. currentMode == CameraSystem::CHASE) {
         // Set throttle target
         if (keysPressed[Key::W] || keysPressed[Key::UP]) {
             tank.targetThrottle = 1.0f;
@@ -1217,6 +1373,9 @@ int main() {
 
     // Collision resolution
     resolveCollisions(tank);
+
+    // Update dust system
+    dustSystem.update(scene, tank, deltaTime);
 
     // Update collision visualization
     collisionViz.update(tank);
