@@ -1012,6 +1012,65 @@ public:
         return enabled;
     }
 };
+// pick up system
+class PickupSystem {
+public:
+    struct Pickup {
+        std::shared_ptr<Mesh> mesh;
+        Vector3 position;
+        bool collected = false;
+    };
+
+    std::vector<Pickup> pickups;
+    int score = 0;
+
+    void initialize(Scene& scene, int count = 15) {
+        auto material = MeshStandardMaterial::create();
+        material->color = Color(0xFFD700);
+        material->emissive = Color(0x332200);
+        material->metalness = 0.9f;
+        material->roughness = 0.1f;
+
+        auto geometry = CylinderGeometry::create(1.5f, 1.5f, 0.3f, 32);
+
+        for (int i = 0; i < count; i++) {
+            auto mesh = Mesh::create(geometry, material);
+
+            float x = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * MAP_SIZE * 0.7f;
+            float z = (static_cast<float>(std::rand()) / RAND_MAX - 0.5f) * MAP_SIZE * 0.7f;
+
+            mesh->position. set(x, 2.0f, z);
+            mesh->rotation.x = threepp::math::PI / 2.0f;
+            mesh->castShadow = true;
+            scene. add(mesh);
+
+            Pickup p;
+            p.mesh = mesh;
+            p.position = mesh->position;
+            pickups. push_back(p);
+        }
+    }
+
+    void update(Scene& scene, const Vector3& tankPos, float deltaTime) {
+        for (auto& pickup : pickups) {
+            if (pickup.collected) continue;
+
+            pickup.mesh->rotation. z += deltaTime * 2.0f;
+
+            float dx = tankPos.x - pickup.position. x;
+            float dz = tankPos.z - pickup. position.z;
+            float dist = std::sqrt(dx * dx + dz * dz);
+
+            if (dist < 5.0f) {
+                pickup.collected = true;
+                scene. remove(*pickup.mesh);
+                score++;
+                std::cout << "\n*** COIN COLLECTED! Total: " << score << " ***" << std::endl;
+            }
+        }
+    }
+};
+
 
 // aux: clamp
 static inline float clampf(float v, float a, float b) {
@@ -1321,6 +1380,10 @@ int main() {
     DustSystem dustSystem;
     dustSystem. initialize(scene);
 
+    // create pickup system
+    PickupSystem pickupSystem;
+    pickupSystem.initialize(scene);
+
     // create collision visualizer after tank is created
     CollisionVisualizer collisionViz;
 
@@ -1394,6 +1457,9 @@ int main() {
 
     // Update dust system
     dustSystem.update(scene, tank, deltaTime);
+
+    // update pickup system
+    pickupSystem. update(scene, tank. model->position, deltaTime);
 
     // Update collision visualization
     collisionViz.update(tank);
