@@ -495,22 +495,32 @@ public:
     float leftTrackSpeed = 0.0f;
     float rightTrackSpeed = 0.0f;
 
+    // steering intertia system
+    float targetSteeringInput = 0.0f; // desired steering
+    float currentSteeringInput = 0.0f; // actual steering
+    float steeringInertia = 0.08f; // steering response (low = slow)
+
+    // acceleration inertia system
+    float targetThrottle = 0.0f; // desired throttle
+    float currentThrottle = 0.0f; // actual throttle
+    float throttleInertia = 0.05f; // throttle response (low = slow)
+
     // physics parameters
-    float maxSpeedForward = 2.50f;
-    float maxSpeedReverse = 1.50f;
-    float acceleration = 0.010f;
-    float reverseAcceleration = 0.010f;
-    float friction = 0.982f;
-    float brakingForce = 0.92f;
+    float maxSpeedForward = 1.00f;
+    float maxSpeedReverse = 0.50f;
+    float acceleration = 0.002f;
+    float reverseAcceleration = 0.0015f;
+    float friction = 0.992f;
+    float brakingForce = 0.95f;
 
     // steering parameters
     float trackWidth = 3.6f;
-    float pivotSpeedThreshold = 1.2f;
-    float maxTurnRate = 0.045f;
-    float pivotTurnRate = 0.055f;
+    float pivotSpeedThreshold = 0.8f;
+    float maxTurnRate = 0.025f;
+    float pivotTurnRate = 0.015f;
 
     // regenerative steering factor
-    float steeringPowerTransfer = 0.15f; // reduce for smooth transition
+    float steeringPowerTransfer = 0.05f; // reduce for smooth transition
 
     // visual elements
     std::shared_ptr<Mesh> leftTrack;
@@ -588,56 +598,95 @@ public:
     }
 
     void update() {
-        // calculate average speed, set steering mode
-        float avgSpeed = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
-        float absAvgSpeed = std::abs(avgSpeed);
+    // gradually apply steering input (inertia)
+    currentSteeringInput += (targetSteeringInput - currentSteeringInput) * steeringInertia;
 
-        // apply friction
-        leftTrackSpeed *= friction;
-        rightTrackSpeed *= friction;
+    // gradually apply throttle input (inertia)
+    currentThrottle += (targetThrottle - currentThrottle) * throttleInertia;
 
-        // clamp speeds based on direction
-        if (avgSpeed >= 0) {
-            leftTrackSpeed = std::clamp(leftTrackSpeed, -maxSpeedReverse, maxSpeedForward);
-            rightTrackSpeed = std::clamp(rightTrackSpeed, -maxSpeedReverse, maxSpeedForward);
-        } else {
-            leftTrackSpeed = std::clamp(leftTrackSpeed, -maxSpeedReverse, maxSpeedForward);
-            rightTrackSpeed = std::clamp(rightTrackSpeed, -maxSpeedReverse, maxSpeedForward);
-        }
-
-        // calculate turn rate based on speed and steering mode
-        float turnRate = 0.0f;
-
-        if (absAvgSpeed < pivotSpeedThreshold) {
-            // low speed = pivot steering
-            turnRate = (rightTrackSpeed - leftTrackSpeed) / trackWidth * pivotTurnRate;
-        } else {
-            // high speed = regenerative steering (more like a car)
-            float speedDiff = rightTrackSpeed - leftTrackSpeed;
-
-            // reduce turn rate at high speed to simulate real behaviour
-            float speedFactor = std::min(1.0f, pivotSpeedThreshold / absAvgSpeed);
-            turnRate = (speedDiff / trackWidth) * maxTurnRate * (1.0f + speedFactor);
-        }
-
-        // update rotation
-        model->rotation.y += turnRate;
-
-        // calculate movement based on average speed
-        float moveX = std::sin(model->rotation.y) * avgSpeed;
-        float moveZ = std::cos(model->rotation.y) * avgSpeed;
-
-        model->position.x += moveX;
-        model->position.z += moveZ;
-
-        // visual belt animation
-        if (std::abs(leftTrackSpeed) > 0.001f) {
-            leftTrack->position.z = std::fmod(leftTrack->position.z - leftTrackSpeed * 5, 1.0f);
-        }
-        if (std::abs(rightTrackSpeed) > 0.001f) {
-            rightTrack->position.z = std::fmod(rightTrack->position.z - rightTrackSpeed * 5, 1.0f);
-        }
+    // apply throttle to both tracks
+    if (currentThrottle > 0.01f) {
+        float throttleForce = currentThrottle * acceleration;
+        leftTrackSpeed += throttleForce;
+        rightTrackSpeed += throttleForce;
+    } else if (currentThrottle < -0.01f) {
+        float throttleForce = currentThrottle * reverseAcceleration;
+        leftTrackSpeed += throttleForce;
+        rightTrackSpeed += throttleForce;
     }
+
+    // calculate average speed for steering mode selection
+    float avgSpeed = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
+    float absAvgSpeed = std::abs(avgSpeed);
+
+    // apply steering based on current (smoothed) input
+        if (std::abs(currentSteeringInput) > 0.01f) {
+            if (absAvgSpeed < pivotSpeedThreshold) {
+                // pivot steering at low speed
+                float steerForce = currentSteeringInput * pivotTurnRate * 0.5f;
+                leftTrackSpeed -= steerForce;
+                rightTrackSpeed += steerForce;
+
+                // prevent net forward motion when only steering (no throttle)
+                if (std::abs(currentThrottle) < 0.01f) {
+                    float avgSpeedNow = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
+                    leftTrackSpeed -= avgSpeedNow;
+                    rightTrackSpeed -= avgSpeedNow;
+                }
+            } else {
+                // regenerative steering at high speed
+                // pure power transfer - slow one track, speed up the other equally
+                float speedFactor = std::min(1.0f, pivotSpeedThreshold / absAvgSpeed);
+                float steerForce = currentSteeringInput * steeringPowerTransfer * speedFactor;
+
+                // transfer speed from one track to the other (no net gain)
+                leftTrackSpeed -= steerForce;
+                rightTrackSpeed += steerForce;
+
+                // preserve original average speed (steering shouldn't change overall speed)
+                float avgSpeedNow = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
+                float correction = avgSpeed - avgSpeedNow;
+                leftTrackSpeed += correction;
+                rightTrackSpeed += correction;
+            }
+        }
+
+    // apply friction
+    leftTrackSpeed *= friction;
+    rightTrackSpeed *= friction;
+
+    // clamp speeds
+    leftTrackSpeed = std::clamp(leftTrackSpeed, -maxSpeedReverse, maxSpeedForward);
+    rightTrackSpeed = std::clamp(rightTrackSpeed, -maxSpeedReverse, maxSpeedForward);
+
+    // calculate turn rate from track speed difference
+    float turnRate = (rightTrackSpeed - leftTrackSpeed) / trackWidth * maxTurnRate;
+
+    // update rotation
+    model->rotation.y += turnRate;
+
+    // recalculate avgSpeed after modifications
+    avgSpeed = (leftTrackSpeed + rightTrackSpeed) / 2.0f;
+
+    // calculate movement
+    float moveX = std::sin(model->rotation. y) * avgSpeed;
+    float moveZ = std::cos(model->rotation.y) * avgSpeed;
+
+    model->position.x += moveX;
+    model->position.z += moveZ;
+
+    // visual belt animation
+    if (std::abs(leftTrackSpeed) > 0.001f) {
+        leftTrack->position.z = std::fmod(leftTrack->position.z - leftTrackSpeed * 0.5f, 1.0f);
+    }
+    if (std::abs(rightTrackSpeed) > 0.001f) {
+        rightTrack->position.z = std::fmod(rightTrack->position.z - rightTrackSpeed * 0.5f, 1.0f);
+    }
+
+    // Reset targets for next frame
+    targetSteeringInput = 0.0f;
+    targetThrottle = 0.0f;
+}
 
     // forward acceleration
     void accelerateLeft() {
@@ -1142,105 +1191,54 @@ int main() {
     const float cloudSpeed = 0.01f;
 
     canvas.animate([&] {
-        bool movingForward = keysPressed[Key::W] || keysPressed[Key::UP];
-        bool movingBackward = keysPressed[Key::S] || keysPressed[Key::DOWN];
-        bool turningLeft = keysPressed[Key::A] || keysPressed[Key::LEFT];
-        bool turningRight = keysPressed[Key::D] || keysPressed[Key::RIGHT];
-        bool braking = keysPressed[Key::SPACE];
-
-        if (cameraSystem.currentMode == CameraSystem::CHASE) {
-            float avgSpeed = (tank.leftTrackSpeed + tank.rightTrackSpeed) / 2.0f;
-            float absAvgSpeed = std::abs(avgSpeed);
-
-            // calculate if tank is in pivot or regenerative mode
-            bool isPivotMode = absAvgSpeed < tank.pivotSpeedThreshold;
-
-            if (movingForward) {
-                if (turningLeft) {
-                    if (isPivotMode) {
-                        // low speed: pivot turn (stop left, increase right)
-                        tank.stopLeft();
-                        tank.accelerateRight();
-                    } else {
-                        // high speed: regenerative steering
-                        tank.accelerateLeft();
-                        tank.accelerateRight();
-                        tank.applyRegenerativeSteering(true); // true = turn left
-                    }
-                } else if (turningRight) {
-                    if (isPivotMode) {
-                        // low speed: pivot turn
-                        tank.accelerateLeft();
-                        tank.stopRight();
-                    } else {
-                        // high speed: regenerative steering
-                        tank.accelerateLeft();
-                        tank.accelerateRight();
-                        tank.applyRegenerativeSteering(false); // false = turn right
-                    }
-                } else {
-                    // straight ahead
-                    tank.accelerateLeft();
-                    tank.accelerateRight();
-                }
-            } else if (movingBackward) {
-                if (turningLeft) {
-                    // reverse + left: always pivot
-                    tank.stopLeft();
-                    tank.brakeRight();
-                } else if (turningRight) {
-                    // reverse + right: always pivot
-                    tank.brakeLeft();
-                    tank.stopRight();
-                } else {
-                    // straight reverse
-                    tank.brakeLeft();
-                    tank.brakeRight();
-                }
-            } else {
-                // no forward/reverse input
-                if (braking) {
-                    // active braking with SPACE
-                    tank.activeBrakeLeft();
-                    tank.activeBrakeRight();
-                } else if (turningLeft) {
-                    // only turning (always pivot when stationary)
-                    tank.brakeLeft();
-                    tank.accelerateRight();
-                } else if (turningRight) {
-                    // only turning
-                    tank.accelerateLeft();
-                    tank.brakeRight();
-                }
-                // Else: friction (coast)
-            }
+    if (cameraSystem. currentMode == CameraSystem::CHASE) {
+        // Set throttle target
+        if (keysPressed[Key::W] || keysPressed[Key::UP]) {
+            tank.targetThrottle = 1.0f;
+        } else if (keysPressed[Key::S] || keysPressed[Key::DOWN]) {
+            tank. targetThrottle = -1.0f;
         }
 
-        tank.update();
-
-        // collision: resolveCollisions does broad + narrow + response
-        resolveCollisions(tank);
-
-        // Update collision visualization
-        collisionViz.update(tank);
-
-        if (cameraSystem.currentMode == CameraSystem::CHASE) {
-            cameraSystem.updateChase(camera, tank.model->position, tank.model->rotation.y);
-        } else {
-            cameraSystem.updateFreeLook(camera,
-                keysPressed[Key::W],
-                keysPressed[Key::S],
-                keysPressed[Key::D],
-                keysPressed[Key::A],
-                keysPressed[Key::X],
-                keysPressed[Key::Z],
-                keysPressed[Key::Q],
-                keysPressed[Key::E]
-            );
+        // Set steering target
+        if (keysPressed[Key::A] || keysPressed[Key::LEFT]) {
+            tank.targetSteeringInput = 1.0f;
+        } else if (keysPressed[Key::D] || keysPressed[Key::RIGHT]) {
+            tank.targetSteeringInput = -1.0f;
         }
 
-        renderer.render(scene, camera);
-    });
+        // Active braking
+        if (keysPressed[Key::SPACE]) {
+            tank. leftTrackSpeed *= tank.brakingForce;
+            tank.rightTrackSpeed *= tank.brakingForce;
+        }
+    }
+
+    tank.update();
+
+    // Collision resolution
+    resolveCollisions(tank);
+
+    // Update collision visualization
+    collisionViz.update(tank);
+
+    // Camera update
+    if (cameraSystem. currentMode == CameraSystem::CHASE) {
+        cameraSystem.updateChase(camera, tank. model->position, tank.model->rotation. y);
+    } else {
+        cameraSystem.updateFreeLook(camera,
+            keysPressed[Key::W],
+            keysPressed[Key::S],
+            keysPressed[Key::D],
+            keysPressed[Key::A],
+            keysPressed[Key::X],
+            keysPressed[Key::Z],
+            keysPressed[Key::Q],
+            keysPressed[Key::E]
+        );
+    }
+
+    renderer.render(scene, camera);
+});
 
     return 0;
 }
