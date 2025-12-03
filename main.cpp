@@ -26,6 +26,10 @@
 #include <threepp/materials/MeshBasicMaterial.hpp>
 #include <threepp/geometries/SphereGeometry.hpp>
 #include <threepp/geometries/CylinderGeometry.hpp>
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 
 using namespace threepp;
 
@@ -1308,19 +1312,19 @@ int main() {
     createCloudFieldInstanced(scene,SimSettings::CLOUD_COUNT);
     createTerrainBorder(scene);
 
-    // Create tank BEFORE using it
+    // create tank before using it
     Tank tank;
     enableShadowsForGroup(tank.model.get(), true, true);
     scene.add(tank. model);
 
-    // Create dust system
+    // create dust system
     DustSystem dustSystem;
     dustSystem. initialize(scene);
 
-    // Create collision visualizer AFTER tank is created
+    // create collision visualizer after tank is created
     CollisionVisualizer collisionViz;
 
-    // Initialize collision visualization AFTER both obstacles and tank are created
+    // initialize collision visualization after both obstacles and tank are created
     collisionViz.initialize(scene, g_obstacles, tank);
 
     CameraSystem cameraSystem;
@@ -1334,7 +1338,21 @@ int main() {
         if (evt.key == Key::O) {
         collisionViz.toggle();
         }
-    });
+        if (evt.key == Key::R) {
+    std::cout << "\n=== RESTARTING APPLICATION ===" << std::endl;
+
+    #ifdef _WIN32
+        char path[MAX_PATH];
+        GetModuleFileNameA(NULL, path, MAX_PATH);
+        ShellExecuteA(NULL, "open", path, NULL, NULL, SW_SHOW);
+    #else
+        extern char* __progname;
+        std::system(("./" + std::string(__progname) + " &").c_str());
+    #endif
+
+        std::exit(0);
+    }
+});
     KeyAdapter keyUpListener(KeyAdapter::Mode::KEY_RELEASED, [&](KeyEvent evt) {
         keysPressed[evt.key] = false;
     });
