@@ -7,7 +7,7 @@
  *
  * AI Tools used:
  * Claude and Gemini was used as a research tool and helped implement some functions such as instanced generation, tank physics, dust clouds, and collision (+visualization).
- * AI also helped set up unit tests and complex maths.
+ * AI also helped set up unit tests, OBB, and complex maths.
  *
  * Assets used:
  * - KayKit - Forest Nature Pack (https://kaylousberg.itch.io/kaykit-forest): Used for trees, grass, rocks, and clouds.
